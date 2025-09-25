@@ -48,13 +48,24 @@ process countBases {
 }
 
 process countRepeats {
-  publishDir params.out, mode: "copy", overwrite: true
   input:
     path fastafile
   output:
     path "${fastafile.getSimpleName()}_repeatcount.txt"
   """
   grep -o "GCCGCG" ${fastafile} | wc -l > ${fastafile.getSimpleName()}_repeatcount.txt
+  echo \$(which fish) > fishlocation.txt
+  """
+}
+
+process makeSummary {
+  publishDir params.out, mode: "copy", overwrite: true
+  input: 
+    path infiles
+  output:
+    path "summary.csv"
+  """
+  ${projectDir}/scripts/makeSummary.sh > summary.csv
   """
 }
 
@@ -64,4 +75,5 @@ workflow {
   c_split_flat = splitSeqs(c_download).flatten()
   c_basecounts = countBases(c_split_flat)
   c_repcounts = countRepeats(c_split_flat)
+  makeSummary(c_repcounts.collect())
 }

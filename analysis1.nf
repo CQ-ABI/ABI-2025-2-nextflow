@@ -1,6 +1,7 @@
 params.out = "${projectDir}/output"
 params.store = "${projectDir}/downloads"
-params.downloadurl = "https://tinyurl.com/cqbatch1"
+params.indir = null
+params.downloadurl = null
 
 process downloadFile {
   storeDir params.store
@@ -30,7 +31,7 @@ process splitSeqs {
   output:
     path "split_*.fasta"
   """
-  split -d -l 2 --additional-suffix .fasta ${fastafile} split_
+  split -d -l 2 --additional-suffix _${fastafile.getSimpleName()}.fasta ${fastafile} split_
   """
 }
 
@@ -65,12 +66,26 @@ process makeSummary {
   output:
     path "summary.csv"
   """
-  ${projectDir}/scripts/makeSummary.sh > summary.csv
-  """
+  for i in \$(ls ${infiles}); do
+    echo -n "\$i" | cut -d "_" -f 2 | tr -d "\n" 
+    echo -n ", "
+    cat \$i
+  done > summary_unsorted.csv
+  cat summary_unsorted.csv | sort > summary.csv
+  """ 
 }
 
 workflow {
-  c_download = downloadFile()
+  if(params.downloadurl != null && params.indir == null) {
+    c_download = downloadFile()
+  }
+  else if(params.indir != null && params.downloadurl == null) {
+    c_download = channel.fromPath("${params.indir}/*.fasta")
+  }
+  else {
+    print("Error: Please provide either --downloadurl or --indir on the commandline.")
+    System.exit(1)
+  }
   countSeqs(c_download)
   c_split_flat = splitSeqs(c_download).flatten()
   c_basecounts = countBases(c_split_flat)
